@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <title>Pigeon Clicker</title>
+  <style>
+    body   { font-family:sans-serif;text-align:center;margin-top:50px;}
+    button { font-size:24px;padding:10px 20px;margin:6px;}
+    #punten{ font-size:32px;margin-top:20px;}
+    #duivenStatus{margin-top:20px;font-size:20px;}
+    #duivenOverzicht { 
+      margin-top: 20px; 
+      text-align: left; 
+      max-width: 400px; 
+      margin-left: auto; 
+      margin-right: auto; 
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+<h1>🐦 Pigeon Clicker 🐦</h1>
+
+<button onclick="klik()">Klik hier! Elke klik = 1 punt</button>
+<button id="adminBtn" onclick="geef10000()" style="display:none;">+10000 punten</button>
+
+<br><br>
+<button onclick="upgradeHok()">🏠 Upgrade hok (15 000 pt × level)</button>
+<button onclick="koopBroedbak()">🪺 Koop broedbak (12 000 pt)</button>
+<button onclick="koopBroedschaal()">🛏️ Koop broedschaal (3 000 pt)</button>
+<button onclick="koopNestmatje()">🧺 Koop nestmatje (1 000 pt)</button>
+<div id="hokStatus"></div>
+
+<br><br>
+<button onclick="koopDoffer()">🐦 Koop doffer (100 000 pt)</button>
+<button onclick="koopDuivin()">🕊️ Koop duivin (120 000 pt)</button>
+
+<br><br>
+<button onclick="startBroeden()">🐣 Start broeden (50 000 pt)</button>
+
+<br><br>
+<div id="duivenStatus">Doffers: 0  Duivinnen: 0</div>
+<div id="duivenOverzicht"></div>
+<div id="punten">Punten: 0</div>
+<div id="eieren" style="margin-top:20px;"></div>
+
+<script>
+/* ▸ 1. Persistentie-variabelen */
+let punten        = Number(localStorage.getItem("punten"))        || 0;
+let hokLevel      = Number(localStorage.getItem("hokLevel"))      || 1;
+let broedbakken   = Number(localStorage.getItem("broedbakken"))   || 1;
+let broedschaal   = Number(localStorage.getItem("broedschaal"))   || 0;
+let nestmatjes    = Number(localStorage.getItem("nestmatjes"))    || 0;
+let broedschaalTijd = Number(localStorage.getItem("broedschaalTijd")) || 0;
+
+let doffers   = JSON.parse(localStorage.getItem("doffers"))   || [];
+let duivinnen = JSON.parse(localStorage.getItem("duivinnen")) || [];
+
+/* ▸ 1b. Globale flag */
+let broedBezig = false;
+
+/* ▸ 2. Helpers */
+function saveState(){
+  localStorage.setItem("punten",punten);
+  localStorage.setItem("hokLevel",hokLevel);
+  localStorage.setItem("broedbakken",broedbakken);
+  localStorage.setItem("broedschaal",broedschaal);
+  localStorage.setItem("nestmatjes",nestmatjes);
+  localStorage.setItem("broedschaalTijd",broedschaalTijd);
+  localStorage.setItem("doffers",JSON.stringify(doffers));
+  localStorage.setItem("duivinnen",JSON.stringify(duivinnen));
+}
+
+function schaalBeschadigd(){
+  const JAAR_MS = 30_000; // 30 s test ≈ 1 jaar
+  return broedschaalTijd !== 0 && (Date.now() - broedschaalTijd) >= JAAR_MS;
+}
+
+function updateBroedschaal(){
+  if(schaalBeschadigd() && broedschaal > 0){
+    broedschaal--;
+    broedschaalTijd = 0;
+  }
+}
+
+/* ▸ 3. UI-update */
+function updatePunten(){
+  document.getElementById("punten").innerText = "Punten: " + punten;
+  saveState();
+}
+
+function updateDuivenStatus(){
+  console.log("DEBUG doffers:", doffers, "duivinnen:", duivinnen);
+  document.getElementById("duivenStatus").innerText =
+    `Doffers: ${doffers.length}   Duivinnen: ${duivinnen.length}`;
+  saveState();
+
+  updateDuivenOverzicht();
+}
+
+function updateHokStatus(){
+  updateBroedschaal();
+  const schaalTxt = schaalBeschadigd() ? "❌" : broedschaal;
+  document.getElementById("hokStatus").innerHTML =
+    `Hok‑lvl ${hokLevel} 🏠 | Broedbakken ${broedbakken} 🪺 | Broedschalen ${schaalTxt} 🛏️ | Nestmatjes ${nestmatjes} 🧺`;
+  saveState();
+}
+
+// Nieuw: functie om leeftijd in maanden te berekenen
+function leeftijdInMaanden(geboorteTijd) {
+  const msPerMaand = 30 * 24 * 60 * 60 * 1000;  // 30 dagen per maand
+  return Math.floor((Date.now() - geboorteTijd) / msPerMaand);
+}
+
+// Nieuw: update overzicht per doffer en duivin
+function updateDuivenOverzicht(){
+  let overzichtHtml = "<h3>Overzicht Doffers</h3>";
+  if(doffers.length === 0){
+    overzichtHtml += "<p>Geen doffers</p>";
+  } else {
+    overzichtHtml += "<ul>";
+    doffers.forEach((doffer, index) => {
+      overzichtHtml += `<li>Doffer ${index+1} - Leeftijd: ${leeftijdInMaanden(doffer.geboorteTijd)} maanden</li>`;
+    });
+    overzichtHtml += "</ul>";
+  }
+
+  overzichtHtml += "<h3>Overzicht Duivinnen</h3>";
+  if(duivinnen.length === 0){
+    overzichtHtml += "<p>Geen duivinnen</p>";
+  } else {
+    overzichtHtml += "<ul>";
+    duivinnen.forEach((duivin, index) => {
+      overzichtHtml += `<li>Duivin ${index+1} - Leeftijd: ${leeftijdInMaanden(duivin.geboorteTijd)} maanden</li>`;
+    });
+    overzichtHtml += "</ul>";
+  }
+
+  document.getElementById("duivenOverzicht").innerHTML = overzichtHtml;
+}
+
+/* ▸ 4. Basishandelingen */
+function klik(){ punten++; updatePunten(); }
+function geef10000(){ punten+=10000; updatePunten(); }
+
+document.addEventListener("keydown", e => {
+  if(e.key === "a"){
+    const btn = document.getElementById("adminBtn");
+    btn.style.display = btn.style.display === "none" ? "inline-block" : "none";
+  }
+});
+
+/* ▸ 5. Shop-items */
+function upgradeHok(){
+  const kosten = hokLevel * 15000;
+  if(punten < kosten) return alert("Niet genoeg punten.");
+  punten -= kosten; hokLevel++; updatePunten(); updateHokStatus();
+}
+
+function koopBroedbak(){
+  if(punten < 12000) return alert("Niet genoeg punten.");
+  punten -= 12000; broedbakken++; updatePunten(); updateHokStatus();
+}
+
+function koopBroedschaal(){
+  if(punten < 3000) return alert("Niet genoeg punten.");
+  punten -= 3000; broedschaal++; updatePunten(); updateHokStatus();
+}
+
+function koopNestmatje(){
+  if(punten < 1000) return alert("Niet genoeg punten.");
+  punten -= 1000; nestmatjes++; updatePunten(); updateHokStatus();
+}
+
+function koopDoffer(){
+  if(punten < 100000) return alert("Niet genoeg punten.");
+  punten -= 100000;
+  doffers.push({geboorteTijd: Date.now() - 6 * 30 * 24 * 60 * 60 * 1000}); // 6 maanden oud
+  updatePunten(); updateDuivenStatus();
+}
+
+function koopDuivin(){
+  if(punten < 120000) return alert("Niet genoeg punten.");
+  punten -= 120000;
+  duivinnen.push({geboorteTijd: Date.now() - 6 * 30 * 24 * 60 * 60 * 1000}); // 6 maanden oud
+  updatePunten(); updateDuivenStatus();
+}
+
+/* ▸ 6. Leeftijd & checks */
+const maandMS = 30 * 24 * 60 * 60 * 1000;
+function ouderDan6mnd(ts){ return (Date.now() - ts) >= 6 * maandMS; }
+function broedschaalBeschikbaar(){ return broedschaal > 0 && !schaalBeschadigd(); }
+function nestmatjeBeschikbaar(){ return nestmatjes > 0; }
+
+/* ▸ 7. Ei-utility */
+function maakEi(tekst, broedTijdMs){
+  const eiDiv = document.createElement("div");
+  eiDiv.innerText = `🥚 ${tekst} – Broedt...`;
+  document.getElementById("eieren").appendChild(eiDiv);
+
+  if(broedTijdMs === 0){
+    eiDiv.innerText = "🐣 Kuiken uitgekomen!";
+  } else {
+    setTimeout(() => eiDiv.innerText = Math.random() < 0.75 ?
+       "🐣 Kuiken uitgekomen!" : "❌ Ei mislukt...", broedTijdMs);
+  }
+}
+
+/* ▸ 8. Broeden */
+function startBroeden(){
+  if(broedBezig) return alert("Er loopt al een broedpoging.");
+  if(punten < 50000) return alert("50 000 pt nodig.");
+  if(broedbakken < 1) return alert("Min. één broedbak vereist.");
+  if(!broedschaalBeschikbaar()) return alert("Broedschaal kapot of ontbreekt.");
+  if(!nestmatjeBeschikbaar()) return alert("Nestmatje ontbreekt.");
+  if(!doffers.some(d => ouderDan6mnd(d.geboorteTijd)) ||
+     !duivinnen.some(d => ouderDan6mnd(d.geboorteTijd)))
+     return alert("Min. één doffer én duivin ≥6 mnd vereist.");
+
+  punten -= 50000;
+  nestmatjes--;
+  broedschaalTijd = Date.now();
+  broedBezig = true;
+  updatePunten(); updateHokStatus();
+  alert("Broeden gestart! (17 s test)");
+
+  setTimeout(() => {
+    broedBezig = false;
+    updatePunten(); updateDuivenStatus();
+
+    // Er komen 2 kuikens uit, elk 40% kans duivin, 60% doffer
+    for(let i=0; i<2; i++){
+      if(Math.random() < 0.4){
+        duivinnen.push({geboorteTijd: Date.now()});
+      } else {
+        doffers.push({geboorteTijd: Date.now()});
+      }
+    }
+    updateDuivenStatus();
+    alert("2 kuikens zijn uitgekomen!");
+  }, 17000); // 17 sec test (voor productie maanden uiteraard langer)
+}
+
+/* ▸ 9. Init */
+updatePunten();
+updateHokStatus();
+updateDuivenStatus();
+
+</script>
+</body>
+</html>
+
+
+
+
+ 
+
+
+
